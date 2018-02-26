@@ -40,7 +40,7 @@
 #include <sys/poll.h>
 
 #define MAX_BUFFER_SIZE		512
-char readBuf[MAX_BUFFER_SIZE];
+unsigned int readBuf[MAX_BUFFER_SIZE];
 
 #define NUM_MESSAGES		10
 #define DEVICE_NAME		"/dev/rpmsg_pru31"
@@ -75,9 +75,9 @@ int main(void)
 			printf("Message %d: Sent to PRU\n", i);
 
 		/* Poll until we receive a message from the PRU and then print it */
-		result = read(pollfds[0].fd, readBuf, 13);
+		result = read(pollfds[0].fd, readBuf, 1);
 		if (result > 0)
-			printf("Message %d received from PRU:%d\n\n", i, readBuf);
+			printf("Message %d received from PRU:%u\n\n", i, readBuf[0]);
 	}
 
 	/* Received all the messages the example is complete */

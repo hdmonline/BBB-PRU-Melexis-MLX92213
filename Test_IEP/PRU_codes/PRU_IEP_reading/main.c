@@ -76,15 +76,17 @@ volatile register uint32_t __R31;
 #define VIRTIO_CONFIG_S_DRIVER_OK	4
 
 uint8_t payload[RPMSG_BUF_SIZE];
+//uint32_t payload = 0;
+uint32_t count = 0;
+//uint8_t test = 0;
 
-
-//void reset_iep(void)
-//{
-//	// Set counter to 0
-//	CT_IEP.TMR_CNT = 0x0;
-//	// Enable counter
-//	CT_IEP.TMR_GLB_CFG = 0x11;
-//}
+void reset_iep(void)
+{
+	// Set counter to 0
+	CT_IEP.TMR_CNT = 0x0;
+	// Enable counter
+	CT_IEP.TMR_GLB_CFG = 0x11;
+}
 
 /*
  * main.c
@@ -109,23 +111,31 @@ void main(void)
 	pru_rpmsg_init(&transport, &resourceTable.rpmsg_vring0, &resourceTable.rpmsg_vring1, TO_ARM_HOST, FROM_ARM_HOST);
 
 	/* reset the ied and start the counter */
-//	reset_iep();
+	reset_iep();
 
+	int i = 0;
 	/* Create the RPMsg channel between the PRU and ARM user space using the transport structure. */
 	while (pru_rpmsg_channel(RPMSG_NS_CREATE, &transport, CHAN_NAME, CHAN_DESC, CHAN_PORT) != PRU_RPMSG_SUCCESS);
 	while (1) {
 		/* Check bit 30 of register R31 to see if the ARM has kicked us */
 		if (__R31 & HOST_INT) {
+
 			/* Clear the event status */
 			CT_INTC.SICR_bit.STS_CLR_IDX = FROM_ARM_HOST;
 			/* Receive all available messages, multiple messages can be sent per kick */
 			while (pru_rpmsg_receive(&transport, &src, &dst, payload, &len) == PRU_RPMSG_SUCCESS) {
 				/* send the counter value of the time back to ARM */
-				payload = CT_IEP.TMR_CNT;
-
+				count = CT_IEP.TMR_CNT;
+				i++;
+				count += i*300000000;
+				payload[0] = (count & 0x000000ff);
+				payload[1] = (count & 0x0000ff00) >> 8;
+				payload[2] = (count & 0x00ff0000) >> 16;
+				payload[3] = (count & 0xff000000) >> 24;
+//				payload[0] = test;
 				pru_rpmsg_send(&transport, dst, src, payload, 4);
 			}
-//			reset_iep();
+			reset_iep();
 		}
 	}
 }

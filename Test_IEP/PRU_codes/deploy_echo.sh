@@ -39,10 +39,10 @@ make
 echo "copying files into /lib/firmware/am335x-pru0-fw"
 cp gen/*.out /lib/firmware/am335x-pru0-fw
 echo "done"
-echo "building PRU_RPMsg_Echo_Interrupt1"
+echo "building PRU_IEP_reading"
 
-alias cd_PRU_RPMsg_Echo_Interrupt1="cd ../PRU_RPMsg_Echo_Interrupt1"
-cd_PRU_RPMsg_Echo_Interrupt1
+alias cd_PRU_IEP_reading="cd ../PRU_IEP_reading"
+cd_PRU_IEP_reading
 
 make clean
 make
