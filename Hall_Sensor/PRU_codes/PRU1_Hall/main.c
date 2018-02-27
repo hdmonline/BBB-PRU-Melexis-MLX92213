@@ -49,6 +49,9 @@ volatile register uint32_t __R31;
 /* Host-1 Interrupt sets bit 31 in register R31 */
 #define HOST_INT			((uint32_t) 1 << 31)
 
+/* P8_45 <---> pru1 r30/31.0 */
+#define P8_45			((uint32_t) 1)
+
 /* The PRU-ICSS system events used for RPMsg are defined in the Linux device tree
  * PRU0 uses system event 16 (To ARM) and 17 (From ARM)
  * PRU1 uses system event 18 (To ARM) and 19 (From ARM)
@@ -75,14 +78,27 @@ volatile register uint32_t __R31;
  */
 #define VIRTIO_CONFIG_S_DRIVER_OK	4
 
-uint8_t payload[RPMSG_BUF_SIZE];
-uint32_t count = 0;
+/* payload to be sent */
+uint8_t *payload;
+
+/* Time cycles */
+volatile uint32_t count = 0;
+
+/* Get initial state */
+volatile uint32_t last_input = 0;
+volatile uint32_t curr_input = 0;
+
+/* rpm */
+float rpm = 0;
+
+/* clock freq of pru */
+const float PRU_CLK = 200000000;
 
 void reset_iep(void)
 {
 	// Set counter to 0
 	CT_IEP.TMR_CNT = 0x0;
-	// Enable counter
+	// Enable counter, set incremental to 1 (default 5)
 	CT_IEP.TMR_GLB_CFG = 0x11;
 }
 
@@ -92,7 +108,7 @@ void reset_iep(void)
 void main(void)
 {
 	struct pru_rpmsg_transport transport;
-	uint16_t src, dst, len;
+	uint16_t src, dst;
 	volatile uint8_t *status;
 
 	/* Allow OCP master port access by the PRU so the PRU can read external memories */
@@ -111,26 +127,25 @@ void main(void)
 	/* reset the ied and start the counter */
 	reset_iep();
 
-	int i = 0;
-	/* Create the RPMsg channel between the PRU and ARM user space using the transport structure. */
-	while (pru_rpmsg_channel(RPMSG_NS_CREATE, &transport, CHAN_NAME, CHAN_DESC, CHAN_PORT) != PRU_RPMSG_SUCCESS);
 	while (1) {
-		/* Check bit 30 of register R31 to see if the ARM has kicked us */
-		if (__R31 & HOST_INT) {
+		/* Check bit 0 of register R31 to see if the input changes */
+		curr_input = __R31 & P8_45;
 
-			/* Clear the event status */
-			CT_INTC.SICR_bit.STS_CLR_IDX = FROM_ARM_HOST;
-			/* Receive all available messages, multiple messages can be sent per kick */
-			while (pru_rpmsg_receive(&transport, &src, &dst, payload, &len) == PRU_RPMSG_SUCCESS) {
-				/* send the counter value of the time back to ARM */
-				count = CT_IEP.TMR_CNT;
-				i++;
-				payload[0] = (count & 0x000000ff);
-				payload[1] = (count & 0x0000ff00) >> 8;
-				payload[2] = (count & 0x00ff0000) >> 16;
-				payload[3] = (count & 0xff000000) >> 24;
-				pru_rpmsg_send(&transport, dst, src, payload, 4);
-			}
+		/* polling on the input to catch the rising edge */
+		if (curr_input != last_input && curr_input == 1) {
+
+			/* send the counter value of the time back to ARM */
+			count = CT_IEP.TMR_CNT;
+
+			/* calculate the rpm */
+			rpm = PRU_CLK/(float)count*60;
+			payload = (uint8_t*)(&rpm);
+			/* send the float number to ARM through RPmsg*/
+//			payload[0] = (rpm & 0x000000ff);
+//			payload[1] = (rpm & 0x0000ff00) >> 8;
+//			payload[2] = (rpm & 0x00ff0000) >> 16;
+//			payload[3] = (rpm & 0xff000000) >> 24;
+			pru_rpmsg_send(&transport, dst, src, payload, 4);
 			reset_iep();
 		}
 	}
