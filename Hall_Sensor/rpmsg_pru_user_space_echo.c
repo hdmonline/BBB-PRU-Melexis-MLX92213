@@ -40,7 +40,7 @@
 #include <sys/poll.h>
 
 #define MAX_BUFFER_SIZE		512
-float *readBuf;
+float readBuf[20];
 
 #define NUM_MESSAGES		10
 #define DEVICE_NAME		"/dev/rpmsg_pru31"
@@ -65,14 +65,21 @@ int main(void)
 	}
 
 	/* The RPMsg channel exists and the character device is opened */
-	printf("Opened %s, sending %d messages\n\n", DEVICE_NAME, NUM_MESSAGES);
+	printf("Opened %s, sending messages\n\n", DEVICE_NAME);
+
+	result = write(pollfds[0].fd, "hello PRU!", 10);
+	if (result > 0)
+		printf("Message Sent to PRU\n");
 
 	while(1){
 
 		/* Poll until we receive a message from the PRU and then print it */
 		result = read(pollfds[0].fd, readBuf, 1);
-		if (result > 0)
-			printf("rpm:%f\n\n", &readBuf);
+		if (result > 0){
+			printf("rpm:%f\n\n", readBuf[0]);
+			i++;
+		}
+
 	}
 
 	/* Received all the messages the example is complete */

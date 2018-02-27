@@ -28,6 +28,10 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 #############################################################################
+
+HEADER=P8_
+PIN_NUMBER=45
+
 echo "**** Starting ****"
 echo "building Halt_PRU"
 
@@ -39,10 +43,14 @@ make
 echo "copying files into /lib/firmware/am335x-pru0-fw"
 cp gen/*.out /lib/firmware/am335x-pru0-fw
 echo "done"
-echo "building PRU_IEP_reading"
+echo "building PRU_Hall"
 
 alias cd_PRU1_Hall="cd ../PRU1_Hall"
 cd_PRU1_Hall
+
+echo "-Configuring pinmux"
+	config-pin -a $HEADER$PIN_NUMBER pruin
+	config-pin -q $HEADER$PIN_NUMBER
 
 make clean
 make
