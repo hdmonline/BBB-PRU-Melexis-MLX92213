@@ -38,6 +38,7 @@
 #include <fcntl.h>
 #include <string.h>
 #include <sys/poll.h>
+#include <stdlib.h>
 
 #define MAX_BUFFER_SIZE		512
 float readBuf[20];
@@ -77,7 +78,6 @@ int main(void)
 		result = read(pollfds[0].fd, readBuf, 1);
 		if (result > 0){
 			printf("rpm:%f\n\n", readBuf[0]);
-			i++;
 		}
 
 	}
