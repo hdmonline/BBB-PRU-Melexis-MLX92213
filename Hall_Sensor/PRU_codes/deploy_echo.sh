@@ -30,7 +30,8 @@
 #############################################################################
 
 HEADER=P8_
-PIN_NUMBER=45
+PIN_IN=45
+PIN_OUT=46
 
 echo "**** Starting ****"
 echo "building Halt_PRU"
@@ -49,8 +50,10 @@ alias cd_PRU1_Hall="cd ../PRU1_Hall"
 cd_PRU1_Hall
 
 echo "-Configuring pinmux"
-	config-pin -a $HEADER$PIN_NUMBER pruin
-	config-pin -q $HEADER$PIN_NUMBER
+	config-pin -a $HEADER$PIN_IN pruin
+	config-pin -q $HEADER$PIN_IN
+	config-pin -a $HEADER$PIN_OUT pruout
+	config-pin -q $HEADER$PIN_OUT
 
 make clean
 make

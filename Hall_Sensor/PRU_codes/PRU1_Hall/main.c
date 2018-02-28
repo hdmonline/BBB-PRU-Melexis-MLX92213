@@ -44,15 +44,21 @@
 #include <string.h>
 #include "resource_table_1.h"
 
+/* Register r30 and r31 */
+volatile register uint32_t __R30;
 volatile register uint32_t __R31;
 
 uint8_t payload[RPMSG_BUF_SIZE];
 
 /* Host-1 Interrupt sets bit 31 in register R31 */
-#define HOST_INT			((uint32_t) 1 << 31)
-
-/* P8_45 <---> pru1 r30/31.0 */
+#define HOST_INT		((uint32_t) 1 << 31)
+/* CMP0 and CMP1 sets bit 0 and 1 in register TMR_CMP_STS */
+#define CMP0_STS		((uint32_t) 1)
+#define CMP1_STS		((uint32_t) 1 << 1)
+/* input <---> pru1 r30/31.0 */
 #define P8_45			((uint32_t) 1)
+/* output (enable) <---> pru1 r30/31.1 */
+#define P8_46			((uint32_t) 1 << 1)
 
 /* The PRU-ICSS system events used for RPMsg are defined in the Linux device tree
  * PRU0 uses system event 16 (To ARM) and 17 (From ARM)
@@ -64,9 +70,6 @@ uint8_t payload[RPMSG_BUF_SIZE];
 /*
  * Using the name 'rpmsg-client-sample' will probe the RPMsg sample driver
  * found at linux-x.y.z/samples/rpmsg/rpmsg_client_sample.c
- *
- * Using the name 'rpmsg-pru' will probe the rpmsg_pru driver found
- * at linux-x.y.z/drivers/rpmsg/rpmsg_pru.c
  */
 //#define CHAN_NAME			"rpmsg-client-sample"
 #define CHAN_NAME			"rpmsg-pru"
@@ -80,15 +83,31 @@ uint8_t payload[RPMSG_BUF_SIZE];
  */
 #define VIRTIO_CONFIG_S_DRIVER_OK	4
 
+/* enable signal frequency */
+#define EN_FREQ			((uint32_t) 10000)
+/* enable signal width (us) */
+#define EN_WIDTH		((uint32_t) 10)
+/* pru clock freq */
+#define PRU_CLK			((uint32_t) 200000000)
+
+
+// Enable signal period: compare register 0
+uint32_t CMP0 = PRU_CLK/EN_FREQ;
+// Enable signal width: compare register 1
+uint32_t CMP1 = PRU_CLK/1000000*EN_WIDTH;
+
+/* number of cycles before next rising edge */
+volatile uint32_t iCycle = 0;
+
 /* Time cycles */
 volatile uint32_t count = 0;
-
+volatile uint32_t last_count = 0;
+volatile uint32_t interval = 0;
 /* Get initial state */
 volatile uint32_t last_input = 0;
 volatile uint32_t curr_input = 0;
 
-/* clock freq of pru */
-const float PRU_CLK = 200000000;
+
 
 /* Put float rpm and uint8 payload in a union type */
 union rpm_union{
@@ -96,12 +115,26 @@ union rpm_union{
     uint8_t payload[4];
 }rpm_payload;
 
-void reset_iep(void) {
+void init_iep(void) {
 	// Set counter to 0
 	CT_IEP.TMR_CNT = 0x0;
-	// Enable counter, set incremental to 1 (default 5)
+	// Enable CMP0 and CMP1
+	CT_IEP.TMR_CMP_CFG = 0x07;
+	// Set CMP registers
+	CT_IEP.TMR_CMP0 = CMP0;
+	CT_IEP.TMR_CMP1 = CMP1;
+	// Set output bit to high
+	__R30 |= P8_46;
+	// Enable counter, set default incremental to 1
 	CT_IEP.TMR_GLB_CFG = 0x11;
 }
+
+//void reset_iep(void) {
+//	// Set counter to 0
+//	CT_IEP.TMR_CNT = 0x0;
+//	// Enable counter, set incremental to 1 (default 5)
+//	CT_IEP.TMR_GLB_CFG = 0x11;
+//}
 
 /*
  * main.c
@@ -122,11 +155,11 @@ void main(void)
 	status = &resourceTable.rpmsg_vdev.status;
 	while (!(*status & VIRTIO_CONFIG_S_DRIVER_OK));
 
+	/* reset the ied and start the counter */
+	init_iep();
+
 	/* Initialize the RPMsg transport structure */
 	pru_rpmsg_init(&transport, &resourceTable.rpmsg_vring0, &resourceTable.rpmsg_vring1, TO_ARM_HOST, FROM_ARM_HOST);
-
-	/* reset the ied and start the counter */
-	reset_iep();
 
     /* Create the RPMsg channel between the PRU and ARM user space using the transport structure. */
     while (pru_rpmsg_channel(RPMSG_NS_CREATE, &transport, CHAN_NAME, CHAN_DESC, CHAN_PORT) != PRU_RPMSG_SUCCESS);
@@ -138,6 +171,25 @@ void main(void)
 		/* Check bit 0 of register R31 to see if the input changes */
 		curr_input = __R31 & P8_45;
 
+		/* event cmp1, set output bit to low */
+		if (CT_IEP.TMR_CMP_STS & CMP1_STS){
+			/* clear event */
+			CT_IEP.TMR_CMP_STS |= CMP1_STS;
+
+			/* Set output bit to low */
+			__R30 &= ~P8_46;
+		}
+
+		/* event cmp0, set output bit to high */
+		if (CT_IEP.TMR_CMP_STS & CMP0_STS){
+			iCycle++;
+			/* clear event */
+			CT_IEP.TMR_CMP_STS |= CMP0_STS;
+			CT_IEP.TMR_CMP_STS |= CMP1_STS;
+			/* Set output bit to high */
+			__R30 |= P8_46;
+		}
+
 		/* Polling on the input to catch the rising edge */
 		if (curr_input != last_input) {
 
@@ -145,12 +197,19 @@ void main(void)
                 /* Send the counter value of the time back to ARM */
                 count = CT_IEP.TMR_CNT;
 
+				/* Calculate the number of clock cycles between 2 rising edges */
+				interval = (last_count > count) ? last_count-count+iCycle*CMP0 : (iCycle-1)*CMP0+last_count-count;
+
                 /* Calculate the rpm */
-                rpm_payload.rpm = PRU_CLK/(float)count*60;
+                rpm_payload.rpm = (float)PRU_CLK/(float)interval*60;
 
 				/* Send rpm to host */
                 pru_rpmsg_send(&transport, dst, src, rpm_payload.payload, 4);
-                reset_iep();
+
+				/* reset the number of cycles */
+				iCycle = 0;
+
+				last_count = count;
             }
 
             last_input = curr_input;
