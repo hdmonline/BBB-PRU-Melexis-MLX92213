@@ -28,7 +28,7 @@
 #
 #############################################################################
 echo "———##########———Compilling C code———##########———"
-gcc rpmsg_pru_user_space_echo.c -o  rpmsg_pru_user_space_echo
+gcc rpmsg_read.c -lpaho-mqtt3c -o rpmsg_read
 echo "———##########———Starting..."
-./rpmsg_pru_user_space_echo
+./rpmsg_read
 echo "...Ending———##########———"

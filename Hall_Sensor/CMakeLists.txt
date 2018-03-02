@@ -1,9 +1,9 @@
 # cmake_minimum_required(VERSION <specify CMake version here>)
-project(Test_IEP)
+project(Hall_Sensor)
 
 set(CMAKE_CXX_STANDARD 11)
 
-add_executable(Test_IEP
+add_executable(Hall_Sensor
         PRU_codes/include/am335x/pru_cfg.h
         PRU_codes/include/am335x/pru_ctrl.h
         PRU_codes/include/am335x/pru_ecap.h
@@ -70,4 +70,4 @@ add_executable(Test_IEP
         PRU_codes/PRU_IEP_reading/resource_table_1.h
         PRU_codes/deploy_echo.sh
         deploy_echo_ARM.sh
-        rpmsg_pru_user_space_echo.c)
+        rpmsg_pru_user_space_echo.c ARM/mqtt.c ARM/test.c)
