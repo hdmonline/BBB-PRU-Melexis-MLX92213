@@ -46,15 +46,25 @@
 #define MAX_BUFFER_SIZE		512
 float readBuf[20];
 #define DEVICE_NAME		"/dev/rpmsg_pru31"
-char payload[40];
+char payload[200];
 
 /* MQTT constants */
 #define ADDRESS     "m10.cloudmqtt.com:15962"
 #define CLIENTID    "bbbPub"
-#define TOPIC       "Asset/Bandsaw/Status"
+#define TOPIC       "Asset/GENOS/SpindleSpeedSensor"
 #define QOS         1
-#define TIMEOUT     10000L
+#define TIMEOUT		10000L
+#define ASSETID    	"GENOS"
+#define DATAITEMID	"SpindleSpeedSensor"
 
+
+/* Time parameters and constants */
+volatile clock_t last_time;
+const int pub_interval = 1000; // ms
+
+/* average rpm */
+volatile float ave_rpm = 0;
+volatile int i_sample = 0;
 
 /* MQTT functions */
 volatile MQTTClient_deliveryToken deliveredtoken;
@@ -86,18 +96,15 @@ void connlost(void *context, char *cause)
 	printf("cause: %s\n", cause);
 }
 
-/* delay function */
-void delay(int number_of_seconds)
+/* elapsed function */
+int isElapsed(void)
 {
-	// Converting time into milli_seconds
-	int milli_seconds = 1000 * number_of_seconds;
-
 	// Stroing start time
-	clock_t start_time = clock();
+	clock_t curr_time = clock();
 
 	// looping till required time is not acheived
-	while (clock() < start_time + milli_seconds)
-		;
+	int rt = (curr_time - last_time > pub_interval) ? 1 : 0;
+	return rt;
 }
 
 int main(void)
@@ -152,22 +159,30 @@ int main(void)
 	if (result > 0)
 		printf("Message Sent to PRU\n");
 
+    last_time = clock();
+
 	while(1){
 
 		/* Poll until we receive a message from the PRU and then print it */
 		result = read(pollfds[0].fd, readBuf, 1);
+
 		if (result > 0) {
-			printf("rpm:%f\n\n", readBuf[0]);
-            sprintf(payload, "%.2f", readBuf[0]);
-			pubmsg.payload = payload;
-			pubmsg.payloadlen = strlen(payload);
-            MQTTClient_publishMessage(client, TOPIC, &pubmsg, &token);
-//            printf("Waiting for publication of %s\n"
-//                           "on topic %s for client with ClientID: %s\n",
-//                   PAYLOAD, TOPIC, CLIENTID);
-            while(deliveredtoken != token);
-            MQTTClient_disconnect(client, 10000);
-            MQTTClient_destroy(&client);
+            if (isElapsed() == 1) {
+                ave_rpm = (ave_rpm*i_sample+readBuf[0])/(i_sample+1);
+                printf("rpm:%.2f\n\n", ave_rpm);
+                sprintf(payload, "{\"assetId\":\"%s\",\"dataItemId\":\"%s\",\"value\":\"%.2f\"}", ASSETID, DATAITEMID, ave_rpm);
+                pubmsg.payload = payload;
+                pubmsg.payloadlen = strlen(payload);
+                MQTTClient_publishMessage(client, TOPIC, &pubmsg, &token);
+                while(deliveredtoken != token);
+                last_time = clock();
+                i_sample = 0;
+                ave_rpm= 0;
+            } else {
+                ave_rpm = (ave_rpm*i_sample+readBuf[0])/(i_sample+1);
+                i_sample++;
+            }
+
 		}
 	}
 

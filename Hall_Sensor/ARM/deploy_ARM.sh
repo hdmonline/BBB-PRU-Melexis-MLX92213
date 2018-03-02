@@ -28,7 +28,7 @@
 #
 #############################################################################
 echo "———##########———Compilling C code———##########———"
-gcc rpmsg_read.c -lpaho-mqtt3c -o rpmsg_read
+gcc rpmsg_mqtt.c -lpaho-mqtt3c -o rpmsg_mqtt
 echo "———##########———Starting..."
-./rpmsg_read
+./rpmsg_mqtt
 echo "...Ending———##########———"
