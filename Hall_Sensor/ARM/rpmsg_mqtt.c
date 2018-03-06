@@ -61,7 +61,7 @@ char payload[200];
 /* Time parameters and constants */
 volatile clock_t last_time;
 clock_t time_stamp;
-const long pub_interval = 1; // s
+const long pub_interval = 1000; // clock cycles
 char str_clock_buf[20];
 
 /* average rpm */
@@ -103,7 +103,7 @@ long isElapsed(void)
 {
 	// Stroing start time
 	clock_t curr_time = clock();
-	long time_elapsed = ((double)curr_time - (double)last_time) / CLOCKS_PER_SEC;
+	long time_elapsed = (long)curr_time - (long)last_time;
 	// looping till required time is not acheived
 	int rt = (time_elapsed > pub_interval) ? 1 : 0;
 	if (rt == 1){
@@ -186,7 +186,7 @@ int main(void)
                 printf("rpm:%.2f\n\n", ave_rpm);
 				time_stamp = time(NULL);
 				strftime(str_clock_buf, 20, "%Y-%m-%dT%H:%M:%S", localtime(&time_stamp));
-                sprintf(payload, "{\"assetId\":\"%s\",\"dataTime\":\"%s\",\"dataItemId\":\"%s\",\"value\":\"%.2f\"}", ASSETID, str_clock_buf, DATAITEMID, ave_rpm);
+                sprintf(payload, "{\"assetId\":\"%s\",\"dateTime\":\"%s\",\"dataItemId\":\"%s\",\"value\":\"%.2f\"}", ASSETID, str_clock_buf, DATAITEMID, ave_rpm);
 
 				printf("time: %s\n", str_clock_buf);
 
