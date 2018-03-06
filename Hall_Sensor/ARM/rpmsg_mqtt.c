@@ -59,8 +59,9 @@ char payload[200];
 
 
 /* Time parameters and constants */
-volatile clock_t last_time;
-const int pub_interval = 1000; // ms
+volatile clock_t last_time, time_stamp;
+const long pub_interval = 1; // s
+char str_clock_buf[20];
 
 /* average rpm */
 volatile float ave_rpm = 0;
@@ -97,13 +98,16 @@ void connlost(void *context, char *cause)
 }
 
 /* elapsed function */
-int isElapsed(void)
+long isElapsed(void)
 {
 	// Stroing start time
 	clock_t curr_time = clock();
-
+	long time_elapsed = ((double)curr_time - (double)last_time) / CLOCKS_PER_SEC;
 	// looping till required time is not acheived
-	int rt = (curr_time - last_time > pub_interval) ? 1 : 0;
+	int rt = (time_elapsed > pub_interval) ? 1 : 0;
+	if (rt == 1){
+		printf("time elaspsed: %d\n", time_elapsed);
+	}
 	return rt;
 }
 
@@ -170,8 +174,13 @@ int main(void)
             if (isElapsed() == 1) {
                 ave_rpm = (ave_rpm*i_sample+readBuf[0])/(i_sample+1);
                 printf("rpm:%.2f\n\n", ave_rpm);
-                sprintf(payload, "{\"assetId\":\"%s\",\"dataItemId\":\"%s\",\"value\":\"%.2f\"}", ASSETID, DATAITEMID, ave_rpm);
-                pubmsg.payload = payload;
+				time_stamp = time(NULL);
+				strftime(str_clock_buf, 20, "%Y-%m-%dT%H:%M:%S", localtime(&time_stamp));
+                sprintf(payload, "{\"assetId\":\"%s\",\"dataTime\":\"%s\",\"dataItemId\":\"%s\",\"value\":\"%.2f\"}", ASSETID, str_clock_buf, DATAITEMID, ave_rpm);
+
+				printf("time: %s\n", str_clock_buf);
+
+				pubmsg.payload = payload;
                 pubmsg.payloadlen = strlen(payload);
                 MQTTClient_publishMessage(client, TOPIC, &pubmsg, &token);
                 while(deliveredtoken != token);
@@ -182,7 +191,6 @@ int main(void)
                 ave_rpm = (ave_rpm*i_sample+readBuf[0])/(i_sample+1);
                 i_sample++;
             }
-
 		}
 	}
 
