@@ -51,10 +51,10 @@ char payload[200];
 /* MQTT constants */
 #define ADDRESS     "mb12.iotfm.org:1883"
 #define CLIENTID    "GenosSensor"
-#define TOPIC       "Asset/GENOS1234567/SpindleSpeed2"
+#define TOPIC       "Asset/GENOSD2814/SpindleSpeed2"
 #define QOS         1
 #define TIMEOUT		10000L
-#define ASSETID    	"GENOS1234567"
+#define ASSETID    	"GENOSD2814"
 #define DATAITEMID	"SpindleSpeed2"
 
 
@@ -188,7 +188,7 @@ int main(void)
 				strftime(str_clock_buf, 20, "%Y-%m-%dT%H:%M:%S", localtime(&time_stamp));
                 sprintf(payload, "{\"assetId\":\"%s\",\"dateTime\":\"%s\",\"dataItemId\":\"%s\",\"value\":\"%.2f\"}", ASSETID, str_clock_buf, DATAITEMID, ave_rpm);
 
-				printf("time: %s\n", str_clock_buf);
+				//printf("time: %s\n", str_clock_buf);
 
 				pubmsg.payload = payload;
                 pubmsg.payloadlen = strlen(payload);
