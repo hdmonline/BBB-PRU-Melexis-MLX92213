@@ -59,7 +59,8 @@ char payload[200];
 
 
 /* Time parameters and constants */
-volatile clock_t last_time, time_stamp;
+volatile clock_t last_time;
+clock_t time_stamp;
 const long pub_interval = 1; // s
 char str_clock_buf[20];
 
@@ -137,6 +138,15 @@ int main(void)
 	pubmsg.qos = QOS;
 	pubmsg.retained = 0;
 	deliveredtoken = 0;
+
+
+
+
+	///////////
+	time_stamp = time(NULL);
+	strftime(str_clock_buf, 20, "%Y-%m-%dT%H:%M:%S", localtime(&time_stamp));
+	printf("time: %s\n", str_clock_buf);
+	///////////
 
 
 	struct pollfd pollfds[1];
