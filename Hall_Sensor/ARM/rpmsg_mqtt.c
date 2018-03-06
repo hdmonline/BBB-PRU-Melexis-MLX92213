@@ -49,13 +49,13 @@ float readBuf[20];
 char payload[200];
 
 /* MQTT constants */
-#define ADDRESS     "mb12.iotfm.org:1883"
-#define CLIENTID    "GenosSensor"
-#define TOPIC       "Asset/GENOS1234567/SpindleSpeed2"
+#define ADDRESS     "m10.cloudmqtt.com:15962"
+#define CLIENTID    "bbbPub"
+#define TOPIC       "Asset/GENOS/SpindleSpeedSensor"
 #define QOS         1
 #define TIMEOUT		10000L
-#define ASSETID    	"GENOS1234567"
-#define DATAITEMID	"SpindleSpeed2"
+#define ASSETID    	"GENOS"
+#define DATAITEMID	"SpindleSpeedSensor"
 
 
 /* Time parameters and constants */
@@ -126,8 +126,8 @@ int main(void)
 	/* create MQTT connection */
 	conn_opts.keepAliveInterval = 20;
 	conn_opts.cleansession = 1;
-	conn_opts.username = "mb12dongmin";
-	conn_opts.password = "M5spKnCW3ZMAZsSH";
+	conn_opts.username = "bbbPub";
+	conn_opts.password = "bbbPub";
 	MQTTClient_setCallbacks(client, NULL, connlost, msgarrvd, delivered);
 	if ((rc = MQTTClient_connect(client, &conn_opts)) != MQTTCLIENT_SUCCESS)
 	{

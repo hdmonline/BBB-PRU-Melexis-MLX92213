@@ -200,14 +200,11 @@ void main(void)
 				/* Calculate the number of clock cycles between 2 rising edges */
 				interval = (last_count > count) ? last_count-count+iCycle*CMP0 : (iCycle-1)*CMP0+last_count-count;
 
-				/* Do not consider any speed greater than 100Hz */
-				if (interval > 200000) {
-					/* Calculate the rpm */
-					rpm_payload.rpm = (float)PRU_CLK/(float)interval*60;
+                /* Calculate the rpm */
+                rpm_payload.rpm = (float)PRU_CLK/(float)interval*60;
 
-					/* Send rpm to host */
-					pru_rpmsg_send(&transport, dst, src, rpm_payload.payload, 4);
-				}
+				/* Send rpm to host */
+                pru_rpmsg_send(&transport, dst, src, rpm_payload.payload, 4);
 
 				/* reset the number of cycles */
 				iCycle = 0;
