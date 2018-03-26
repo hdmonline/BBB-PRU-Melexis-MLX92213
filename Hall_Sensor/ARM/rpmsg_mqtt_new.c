@@ -40,6 +40,10 @@
 #include <sys/poll.h>
 #include <stdlib.h>
 #include <time.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <sys/select.h>
 #include "MQTTClient.h"
 
 /* rpmsg constants */
@@ -129,6 +133,10 @@ long isElapsed2(void)
 
 int main(void)
 {
+	fd_set set;
+	struct timeval timeout;
+	int rv;
+
 	/* create MQTT client */
 	MQTTClient client;
 	MQTTClient_connectOptions conn_opts = MQTTClient_connectOptions_initializer;
@@ -164,11 +172,19 @@ int main(void)
 	///////////
 
 
-	struct pollfd pollfds[1];
-	int result = 0;
+//	struct pollfd pollfds[1];
+//	int result = 0;
 
 	/* Open the rpmsg_pru character device file */
-	pollfds[0].fd = open(DEVICE_NAME, O_RDWR);
+//	pollfds[0].fd = open(DEVICE_NAME, O_RDWR);
+
+	int filedesc = open(DEVICE_NAME, O_RDWR);
+	FD_ZERO(&set);
+	FD_SET(filedesc, &set);
+
+	timeout.tv_sec = 0;
+	timeout.tv_usec = 5000;
+
 
 	/*
 	 * If the RPMsg channel doesn't exist yet the character device
@@ -176,15 +192,16 @@ int main(void)
 	 * Make sure the PRU firmware is loaded and that the rpmsg_pru
 	 * module is inserted.
 	 */
-	if (pollfds[0].fd < 0) {
-		printf("Failed to open %s\n", DEVICE_NAME);
-		return -1;
-	}
+//	if (pollfds[0].fd < 0) {
+//		printf("Failed to open %s\n", DEVICE_NAME);
+//		return -1;
+//	}
 
 	/* The RPMsg channel exists and the character device is opened */
 	printf("Opened %s, sending messages\n\n", DEVICE_NAME);
 
-	result = write(pollfds[0].fd, "hello PRU!", 10);
+	int result = 0;
+	result = write(filedesc, "hello PRU!", 10);
 	if (result > 0)
 		printf("Message Sent to PRU\n");
 
@@ -193,31 +210,11 @@ int main(void)
 	while(1){
 
 		/* Poll until we receive a message from the PRU and then print it */
-		result = read(pollfds[0].fd, readBuf, 1);
-
-		if (result > 0) {
-			isZero = 0;
-            if (isElapsed() == 1) {
-                ave_rpm = (ave_rpm*i_sample+readBuf[0])/(i_sample+1);
-                printf("rpm:%.2f\n", ave_rpm);
-				time_stamp = time(NULL);
-				strftime(str_clock_buf, 20, "%Y-%m-%dT%H:%M:%S", localtime(&time_stamp));
-                sprintf(payload, "{\"assetId\":\"%s\",\"dateTime\":\"%s\",\"dataItemId\":\"%s\",\"value\":\"%.2f\"}", ASSETID, str_clock_buf, DATAITEMID, ave_rpm);
-
-				//printf("time: %s\n", str_clock_buf);
-
-				pubmsg.payload = payload;
-                pubmsg.payloadlen = strlen(payload);
-                MQTTClient_publishMessage(client, TOPIC, &pubmsg, &token);
-                while(deliveredtoken != token);
-                last_time = clock();
-                i_sample = 0;
-                ave_rpm= 0;
-            }else {
-                ave_rpm = (ave_rpm*i_sample+readBuf[0])/(i_sample+1);
-                i_sample++;
-            }
-		} else if (isZero == 0 && isElapsed() == 1) {
+		rv = select(filedesc + 1, &set, NULL, NULL, &timeout);
+		if (rv == 1) {
+			perror("select");
+		}else if (rv == 0){
+			printf("sending 0");
 			time_stamp = time(NULL);
 			strftime(str_clock_buf, 20, "%Y-%m-%dT%H:%M:%S", localtime(&time_stamp));
 			sprintf(payload, "{\"assetId\":\"%s\",\"dateTime\":\"%s\",\"dataItemId\":\"%s\",\"value\":\"%.2f\"}",
@@ -229,6 +226,31 @@ int main(void)
 			i_sample = 0;
 			ave_rpm = 0;
 			isZero = 1;
+		}else{
+			int result = read(filedesc, readBuf, 1);
+			if (result > 0) {
+				isZero = 0;
+				if (isElapsed() == 1) {
+					ave_rpm = (ave_rpm*i_sample+readBuf[0])/(i_sample+1);
+					printf("rpm:%.2f\n", ave_rpm);
+					time_stamp = time(NULL);
+					strftime(str_clock_buf, 20, "%Y-%m-%dT%H:%M:%S", localtime(&time_stamp));
+					sprintf(payload, "{\"assetId\":\"%s\",\"dateTime\":\"%s\",\"dataItemId\":\"%s\",\"value\":\"%.2f\"}", ASSETID, str_clock_buf, DATAITEMID, ave_rpm);
+
+					//printf("time: %s\n", str_clock_buf);
+
+					pubmsg.payload = payload;
+					pubmsg.payloadlen = strlen(payload);
+					MQTTClient_publishMessage(client, TOPIC, &pubmsg, &token);
+					while(deliveredtoken != token);
+					last_time = clock();
+					i_sample = 0;
+					ave_rpm= 0;
+				}else {
+					ave_rpm = (ave_rpm*i_sample+readBuf[0])/(i_sample+1);
+					i_sample++;
+				}
+			}
 		}
 	}
 
@@ -236,7 +258,7 @@ int main(void)
 	printf("Received messages, closing %s\n", DEVICE_NAME);
 
 	/* Close the rpmsg_pru character device file */
-	close(pollfds[0].fd);
+	//close(pollfds[0].fd);
 
 	return 0;
 }
